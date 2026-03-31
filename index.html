@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>我的烘焙食譜</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    input { margin: 5px; padding: 5px; }
+    button { padding: 8px 12px; }
+  </style>
+</head>
+<body>
+
+<h2>🍰 巴斯克蛋糕換算工具</h2>
+
+<label>原尺寸倍率：</label>
+<input id="base" type="number" value="1"><br>
+
+<label>目標倍率：</label>
+<input id="target" type="number" value="1.5"><br>
+
+<h3>材料</h3>
+
+<div>
+  奶油乳酪：<input class="ingredient" value="250"> g<br>
+  糖：<input class="ingredient" value="65"> g<br>
+  鮮奶油：<input class="ingredient" value="120"> g<br>
+  麵粉：<input class="ingredient" value="15"> g<br>
+</div>
+
+<br>
+<button onclick="calculate()">自動換算</button>
+
+<h3>結果</h3>
+<div id="result"></div>
+
+<script>
+function calculate() {
+  let base = parseFloat(document.getElementById("base").value);
+  let target = parseFloat(document.getElementById("target").value);
+  let ratio = target / base;
+
+  let inputs = document.querySelectorAll(".ingredient");
+  let result = "";
+
+  inputs.forEach((input, i) => {
+    let value = parseFloat(input.value);
+    let newValue = (value * ratio).toFixed(1);
+    result += `材料${i+1}：${newValue} g<br>`;
+  });
+
+  document.getElementById("result").innerHTML = result;
+}
+</script>
+
+</body>
+</html>
