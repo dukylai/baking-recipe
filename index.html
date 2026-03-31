@@ -1,56 +1,172 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <title>我的烘焙食譜</title>
-  <style>
-    body { font-family: Arial; padding: 20px; }
-    input { margin: 5px; padding: 5px; }
-    button { padding: 8px 12px; }
-  </style>
+<meta charset="UTF-8">
+<title>我的烘焙食譜系統</title>
+<style>
+body { font-family: Arial; padding: 20px; }
+input, textarea, select { margin: 5px; padding: 5px; }
+button { padding: 8px 12px; margin-top:10px;}
+.section { margin-bottom:20px; }
+</style>
 </head>
+
 <body>
 
-<h2>🍰 巴斯克蛋糕換算工具</h2>
+<h2>🍰 烘焙食譜系統</h2>
 
-<label>原尺寸倍率：</label>
-<input id="base" type="number" value="1"><br>
-
-<label>目標倍率：</label>
-<input id="target" type="number" value="1.5"><br>
-
-<h3>材料</h3>
-
-<div>
-  奶油乳酪：<input class="ingredient" value="250"> g<br>
-  糖：<input class="ingredient" value="65"> g<br>
-  鮮奶油：<input class="ingredient" value="120"> g<br>
-  麵粉：<input class="ingredient" value="15"> g<br>
+<div class="section">
+<h3>📚 選擇食譜</h3>
+<select id="recipeSelect" onchange="loadRecipe()"></select>
+<button onclick="newRecipe()">➕ 新增食譜</button>
 </div>
 
-<br>
-<button onclick="calculate()">自動換算</button>
+<div class="section">
+名稱：<input id="recipeName"><br>
+</div>
 
-<h3>結果</h3>
+<div class="section">
+<h3>📏 尺寸換算</h3>
+原倍率：<input id="base" type="number"><br>
+目標倍率：<input id="target" type="number"><br>
+</div>
+
+<div class="section">
+<h3>🧾 材料（名稱:數量）</h3>
+<textarea id="ingredients" rows="5">
+奶油乳酪:250
+糖:65
+鮮奶油:120
+麵粉:15
+</textarea>
+</div>
+
+<div class="section">
+<h3>🔥 溫度與時間</h3>
+溫度：<input id="temp" type="number"> °C<br>
+時間：<input id="time" type="number"> 分鐘<br>
+</div>
+
+<div class="section">
+<h3>📝 步驟</h3>
+<textarea id="steps" rows="6"></textarea>
+</div>
+
+<button onclick="calculate()">🔄 產生食譜</button>
+<button onclick="saveRecipe()">💾 儲存</button>
+
+<h3>📋 結果</h3>
 <div id="result"></div>
 
 <script>
+let recipes = JSON.parse(localStorage.getItem("recipes")) || [];
+let currentIndex = 0;
+
+function updateSelect() {
+  let select = document.getElementById("recipeSelect");
+  select.innerHTML = "";
+  recipes.forEach((r, i) => {
+    let option = document.createElement("option");
+    option.value = i;
+    option.text = r.name;
+    select.appendChild(option);
+  });
+}
+
+function loadRecipe() {
+  currentIndex = document.getElementById("recipeSelect").value;
+  let r = recipes[currentIndex];
+
+  document.getElementById("recipeName").value = r.name;
+  document.getElementById("base").value = r.base;
+  document.getElementById("target").value = r.target;
+  document.getElementById("ingredients").value = r.ingredients;
+  document.getElementById("temp").value = r.temp;
+  document.getElementById("time").value = r.time;
+  document.getElementById("steps").value = r.steps;
+}
+
+function saveRecipe() {
+  let data = {
+    name: document.getElementById("recipeName").value,
+    base: document.getElementById("base").value,
+    target: document.getElementById("target").value,
+    ingredients: document.getElementById("ingredients").value,
+    temp: document.getElementById("temp").value,
+    time: document.getElementById("time").value,
+    steps: document.getElementById("steps").value
+  };
+
+  recipes[currentIndex] = data;
+  localStorage.setItem("recipes", JSON.stringify(recipes));
+  updateSelect();
+  alert("已儲存！");
+}
+
+function newRecipe() {
+  let name = prompt("輸入新食譜名稱");
+  if (!name) return;
+
+  let data = {
+    name: name,
+    base: 1,
+    target: 1,
+    ingredients: "",
+    temp: "",
+    time: "",
+    steps: ""
+  };
+
+  recipes.push(data);
+  currentIndex = recipes.length - 1;
+  saveRecipe();
+  updateSelect();
+}
+
 function calculate() {
   let base = parseFloat(document.getElementById("base").value);
   let target = parseFloat(document.getElementById("target").value);
   let ratio = target / base;
 
-  let inputs = document.querySelectorAll(".ingredient");
-  let result = "";
+  let lines = document.getElementById("ingredients").value.split("\n");
+  let result = "<h4>材料</h4>";
 
-  inputs.forEach((input, i) => {
-    let value = parseFloat(input.value);
-    let newValue = (value * ratio).toFixed(1);
-    result += `材料${i+1}：${newValue} g<br>`;
+  lines.forEach(line => {
+    let [name, value] = line.split(":");
+    if (!name || !value) return;
+    let newValue = (parseFloat(value) * ratio).toFixed(1);
+    result += `${name}：${newValue} g<br>`;
   });
+
+  let temp = document.getElementById("temp").value;
+  let time = document.getElementById("time").value;
+  let steps = document.getElementById("steps").value;
+
+  result += "<h4>烘烤條件</h4>";
+  result += `溫度：${temp} °C<br>時間：${time} 分鐘<br>`;
+
+  result += "<h4>步驟</h4>";
+  result += steps.replace(/\n/g, "<br>");
 
   document.getElementById("result").innerHTML = result;
 }
+
+// 初始化
+if (recipes.length === 0) {
+  recipes.push({
+    name: "巴斯克",
+    base: 1,
+    target: 1,
+    ingredients: "奶油乳酪:250\n糖:65\n鮮奶油:120\n麵粉:15",
+    temp: 200,
+    time: 20,
+    steps: "混合材料\n倒入模具\n200度烤20分鐘"
+  });
+  localStorage.setItem("recipes", JSON.stringify(recipes));
+}
+
+updateSelect();
+loadRecipe();
 </script>
 
 </body>
