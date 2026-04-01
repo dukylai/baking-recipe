@@ -2,171 +2,171 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>我的烘焙食譜系統</title>
+<title>烘焙紀錄系統（商用版）</title>
 <style>
-body { font-family: Arial; padding: 20px; }
-input, textarea, select { margin: 5px; padding: 5px; }
-button { padding: 8px 12px; margin-top:10px;}
-.section { margin-bottom:20px; }
+body { font-family: Arial; padding:20px; background:#f5f5f5; }
+.card { background:white; padding:15px; border-radius:10px; margin-bottom:15px; }
+input, select, button, textarea { margin:5px 0; padding:6px; width:100%; }
+.small { width:48%; display:inline-block; }
+.row { display:flex; gap:8px; }
+.row > * { flex:1; }
+.badge { display:inline-block; padding:2px 6px; border-radius:6px; background:#eee; margin-right:6px; }
 </style>
 </head>
-
 <body>
 
-<h2>🍰 烘焙食譜系統</h2>
+<h2>🍰 烘焙紀錄系統（商用版）</h2>
 
-<div class="section">
-<h3>📚 選擇食譜</h3>
-<select id="recipeSelect" onchange="loadRecipe()"></select>
-<button onclick="newRecipe()">➕ 新增食譜</button>
+<div class="card">
+<h3>新增產品</h3>
+<input id="productName" placeholder="產品名稱">
+<input id="baseSize" type="number" placeholder="基準尺寸(例如6吋)">
+
+<h4>材料（含成本）</h4>
+<textarea id="ingredients" placeholder="格式: 名稱,數量,單位,單位成本\n例:\n奶油乳酪,250,g,0.8\n糖,65,g,0.05"></textarea>
+
+<h4>產出數量（成品）</h4>
+<input id="yieldCount" type="number" placeholder="例如：1（整模）或 6（6顆杯子蛋糕）">
+
+<h4>預熱設定</h4>
+<div class="row">
+<input id="preheatTemp" placeholder="預熱溫度(°C)">
+<input id="preheatTime" placeholder="預熱時間(分鐘)">
 </div>
 
-<div class="section">
-名稱：<input id="recipeName"><br>
+<h4>烘焙溫度與時間（可多段）</h4>
+<div id="steps"></div>
+<button onclick="addStep()">➕ 新增溫度步驟</button>
+
+<h4>建議售價倍率</h4>
+<input id="priceRate" placeholder="例如：2.5（成本x2.5）">
+
+<button onclick="addProduct()">新增產品</button>
 </div>
 
-<div class="section">
-<h3>📏 尺寸換算</h3>
-原倍率：<input id="base" type="number"><br>
-目標倍率：<input id="target" type="number"><br>
+<div class="card">
+<h3>產品列表</h3>
+<select id="productList"></select>
+<input id="targetSize" type="number" placeholder="想做尺寸（例如8吋）">
+<button onclick="calculate()">換算材料 / 成本</button>
 </div>
 
-<div class="section">
-<h3>🧾 材料（名稱:數量）</h3>
-<textarea id="ingredients" rows="5">
-奶油乳酪:250
-糖:65
-鮮奶油:120
-麵粉:15
-</textarea>
+<div class="card">
+<h3>結果</h3>
+<pre id="result"></pre>
 </div>
-
-<div class="section">
-<h3>🔥 溫度與時間</h3>
-溫度：<input id="temp" type="number"> °C<br>
-時間：<input id="time" type="number"> 分鐘<br>
-</div>
-
-<div class="section">
-<h3>📝 步驟</h3>
-<textarea id="steps" rows="6"></textarea>
-</div>
-
-<button onclick="calculate()">🔄 產生食譜</button>
-<button onclick="saveRecipe()">💾 儲存</button>
-
-<h3>📋 結果</h3>
-<div id="result"></div>
 
 <script>
-let recipes = JSON.parse(localStorage.getItem("recipes")) || [];
-let currentIndex = 0;
+let products = JSON.parse(localStorage.getItem('products') || '[]');
 
-function updateSelect() {
-  let select = document.getElementById("recipeSelect");
-  select.innerHTML = "";
-  recipes.forEach((r, i) => {
-    let option = document.createElement("option");
-    option.value = i;
-    option.text = r.name;
-    select.appendChild(option);
+function save() {
+  localStorage.setItem('products', JSON.stringify(products));
+}
+
+function renderList() {
+  let list = document.getElementById('productList');
+  list.innerHTML = '';
+  products.forEach((p, i) => {
+    let opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = p.name;
+    list.appendChild(opt);
   });
 }
 
-function loadRecipe() {
-  currentIndex = document.getElementById("recipeSelect").value;
-  let r = recipes[currentIndex];
-
-  document.getElementById("recipeName").value = r.name;
-  document.getElementById("base").value = r.base;
-  document.getElementById("target").value = r.target;
-  document.getElementById("ingredients").value = r.ingredients;
-  document.getElementById("temp").value = r.temp;
-  document.getElementById("time").value = r.time;
-  document.getElementById("steps").value = r.steps;
+function addStep(temp='', time='') {
+  let div = document.createElement('div');
+  div.className = 'row';
+  div.innerHTML = `
+    <input placeholder="溫度(°C)" value="${temp}">
+    <input placeholder="時間(分鐘)" value="${time}">
+  `;
+  document.getElementById('steps').appendChild(div);
 }
 
-function saveRecipe() {
-  let data = {
-    name: document.getElementById("recipeName").value,
-    base: document.getElementById("base").value,
-    target: document.getElementById("target").value,
-    ingredients: document.getElementById("ingredients").value,
-    temp: document.getElementById("temp").value,
-    time: document.getElementById("time").value,
-    steps: document.getElementById("steps").value
-  };
-
-  recipes[currentIndex] = data;
-  localStorage.setItem("recipes", JSON.stringify(recipes));
-  updateSelect();
-  alert("已儲存！");
+function getSteps() {
+  let stepDivs = document.getElementById('steps').children;
+  let steps = [];
+  for (let d of stepDivs) {
+    let inputs = d.getElementsByTagName('input');
+    let temp = parseFloat(inputs[0].value);
+    let time = parseFloat(inputs[1].value);
+    if (!isNaN(temp) && !isNaN(time)) {
+      steps.push({ temp, time });
+    }
+  }
+  return steps;
 }
 
-function newRecipe() {
-  let name = prompt("輸入新食譜名稱");
-  if (!name) return;
+function addProduct() {
+  let name = document.getElementById('productName').value;
+  let baseSize = parseFloat(document.getElementById('baseSize').value);
+  let yieldCount = parseFloat(document.getElementById('yieldCount').value) || 1;
 
-  let data = {
-    name: name,
-    base: 1,
-    target: 1,
-    ingredients: "",
-    temp: "",
-    time: "",
-    steps: ""
-  };
+  let ingText = document.getElementById('ingredients').value.split('\n');
+  let ingredients = ingText.map(line => {
+    let [name, qty, unit, cost] = line.split(',');
+    return { name, qty: parseFloat(qty), unit, cost: parseFloat(cost) || 0 };
+  });
 
-  recipes.push(data);
-  currentIndex = recipes.length - 1;
-  saveRecipe();
-  updateSelect();
+  let steps = getSteps();
+  let preheatTemp = document.getElementById('preheatTemp').value;
+  let preheatTime = document.getElementById('preheatTime').value;
+  let priceRate = parseFloat(document.getElementById('priceRate').value) || 2;
+
+  products.push({ name, baseSize, ingredients, steps, preheatTemp, preheatTime, yieldCount, priceRate });
+  save();
+  renderList();
+  alert('已新增');
+}
+
+// 面積比例（圓形蛋糕用）= (目標直徑^2 / 基準直徑^2)
+function getRatio(target, base) {
+  return (target * target) / (base * base);
 }
 
 function calculate() {
-  let base = parseFloat(document.getElementById("base").value);
-  let target = parseFloat(document.getElementById("target").value);
-  let ratio = target / base;
+  let index = document.getElementById('productList').value;
+  let targetSize = parseFloat(document.getElementById('targetSize').value);
 
-  let lines = document.getElementById("ingredients").value.split("\n");
-  let result = "<h4>材料</h4>";
+  let p = products[index];
+  let ratio = getRatio(targetSize, p.baseSize);
 
-  lines.forEach(line => {
-    let [name, value] = line.split(":");
-    if (!name || !value) return;
-    let newValue = (parseFloat(value) * ratio).toFixed(1);
-    result += `${name}：${newValue} g<br>`;
+  let totalCost = 0;
+  let totalTime = 0;
+
+  let text = `產品: ${p.name}\n`;
+  text += `尺寸倍率: ${ratio.toFixed(2)}\n`;
+  text += `預熱: ${p.preheatTemp}°C → ${p.preheatTime} 分鐘\n\n`;
+
+  text += `🔥 烘焙流程:\n`;
+  p.steps.forEach(s => {
+    totalTime += s.time;
+    text += `${s.temp}°C → ${s.time} 分鐘\n`;
   });
 
-  let temp = document.getElementById("temp").value;
-  let time = document.getElementById("time").value;
-  let steps = document.getElementById("steps").value;
+  text += `總烘焙時間: ${totalTime} 分鐘\n\n`;
 
-  result += "<h4>烘烤條件</h4>";
-  result += `溫度：${temp} °C<br>時間：${time} 分鐘<br>`;
-
-  result += "<h4>步驟</h4>";
-  result += steps.replace(/\n/g, "<br>");
-
-  document.getElementById("result").innerHTML = result;
-}
-
-// 初始化
-if (recipes.length === 0) {
-  recipes.push({
-    name: "巴斯克",
-    base: 1,
-    target: 1,
-    ingredients: "奶油乳酪:250\n糖:65\n鮮奶油:120\n麵粉:15",
-    temp: 200,
-    time: 20,
-    steps: "混合材料\n倒入模具\n200度烤20分鐘"
+  text += `🧾 材料:\n`;
+  p.ingredients.forEach(i => {
+    let newQty = (i.qty * ratio);
+    let cost = newQty * i.cost;
+    totalCost += cost;
+    text += `${i.name}: ${newQty.toFixed(2)} ${i.unit} | 成本 ${cost.toFixed(1)}\n`;
   });
-  localStorage.setItem("recipes", JSON.stringify(recipes));
+
+  let unitCost = totalCost / p.yieldCount;
+  let suggestPrice = unitCost * p.priceRate;
+
+  text += `\n💰 總成本: ${totalCost.toFixed(1)}\n`;
+  text += `單個成本: ${unitCost.toFixed(1)}\n`;
+  text += `建議售價(${p.priceRate}倍): ${suggestPrice.toFixed(0)}\n`;
+
+  document.getElementById('result').textContent = text;
 }
 
-updateSelect();
-loadRecipe();
+renderList();
+addStep();
 </script>
 
 </body>
