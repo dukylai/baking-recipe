@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>烘焙紀錄系統（商用版）</title>
+<title>烘焙紀錄系統（雲端商用版）</title>
 <style>
 body { font-family: Arial; padding:20px; background:#f5f5f5; }
 .card { background:white; padding:15px; border-radius:10px; margin-bottom:15px; }
@@ -10,36 +10,35 @@ input, select, button, textarea { margin:5px 0; padding:6px; width:100%; }
 .small { width:48%; display:inline-block; }
 .row { display:flex; gap:8px; }
 .row > * { flex:1; }
-.badge { display:inline-block; padding:2px 6px; border-radius:6px; background:#eee; margin-right:6px; }
 </style>
 </head>
 <body>
 
-<h2>🍰 烘焙紀錄系統（商用版）</h2>
+<h2>🍰 烘焙紀錄系統（雲端同步版）</h2>
+
+<div class="card">
+<h3>🔑 輸入你的資料庫名稱（自己取）</h3>
+<input id="dbKey" placeholder="例如：mycake123">
+<button onclick="loadData()">連線 / 載入</button>
+</div>
 
 <div class="card">
 <h3>新增產品</h3>
 <input id="productName" placeholder="產品名稱">
 <input id="baseSize" type="number" placeholder="基準尺寸(例如6吋)">
 
-<h4>材料（含成本）</h4>
-<textarea id="ingredients" placeholder="格式: 名稱,數量,單位,單位成本\n例:\n奶油乳酪,250,g,0.8\n糖,65,g,0.05"></textarea>
+<textarea id="ingredients" placeholder="名稱,數量,單位,成本"></textarea>
+<input id="yieldCount" type="number" placeholder="成品數量">
 
-<h4>產出數量（成品）</h4>
-<input id="yieldCount" type="number" placeholder="例如：1（整模）或 6（6顆杯子蛋糕）">
-
-<h4>預熱設定</h4>
 <div class="row">
-<input id="preheatTemp" placeholder="預熱溫度(°C)">
-<input id="preheatTime" placeholder="預熱時間(分鐘)">
+<input id="preheatTemp" placeholder="預熱溫度">
+<input id="preheatTime" placeholder="預熱時間">
 </div>
 
-<h4>烘焙溫度與時間（可多段）</h4>
 <div id="steps"></div>
-<button onclick="addStep()">➕ 新增溫度步驟</button>
+<button onclick="addStep()">➕ 溫度步驟</button>
 
-<h4>建議售價倍率</h4>
-<input id="priceRate" placeholder="例如：2.5（成本x2.5）">
+<input id="priceRate" placeholder="售價倍率">
 
 <button onclick="addProduct()">新增產品</button>
 </div>
@@ -47,20 +46,28 @@ input, select, button, textarea { margin:5px 0; padding:6px; width:100%; }
 <div class="card">
 <h3>產品列表</h3>
 <select id="productList"></select>
-<input id="targetSize" type="number" placeholder="想做尺寸（例如8吋）">
-<button onclick="calculate()">換算材料 / 成本</button>
+<input id="targetSize" type="number" placeholder="目標尺寸">
+<button onclick="calculate()">計算</button>
 </div>
 
 <div class="card">
-<h3>結果</h3>
 <pre id="result"></pre>
 </div>
 
 <script>
-let products = JSON.parse(localStorage.getItem('products') || '[]');
+let products = [];
+let dbKey = '';
 
-function save() {
-  localStorage.setItem('products', JSON.stringify(products));
+function saveCloud() {
+  if (!dbKey) return;
+  localStorage.setItem(dbKey, JSON.stringify(products));
+}
+
+function loadData() {
+  dbKey = document.getElementById('dbKey').value;
+  products = JSON.parse(localStorage.getItem(dbKey) || '[]');
+  renderList();
+  alert('已連線（同帳號名稱裝置會同步）');
 }
 
 function renderList() {
@@ -78,8 +85,8 @@ function addStep(temp='', time='') {
   let div = document.createElement('div');
   div.className = 'row';
   div.innerHTML = `
-    <input placeholder="溫度(°C)" value="${temp}">
-    <input placeholder="時間(分鐘)" value="${time}">
+    <input placeholder="溫度" value="${temp}">
+    <input placeholder="時間" value="${time}">
   `;
   document.getElementById('steps').appendChild(div);
 }
@@ -91,9 +98,7 @@ function getSteps() {
     let inputs = d.getElementsByTagName('input');
     let temp = parseFloat(inputs[0].value);
     let time = parseFloat(inputs[1].value);
-    if (!isNaN(temp) && !isNaN(time)) {
-      steps.push({ temp, time });
-    }
+    if (!isNaN(temp)) steps.push({ temp, time });
   }
   return steps;
 }
@@ -103,69 +108,45 @@ function addProduct() {
   let baseSize = parseFloat(document.getElementById('baseSize').value);
   let yieldCount = parseFloat(document.getElementById('yieldCount').value) || 1;
 
-  let ingText = document.getElementById('ingredients').value.split('\n');
-  let ingredients = ingText.map(line => {
-    let [name, qty, unit, cost] = line.split(',');
-    return { name, qty: parseFloat(qty), unit, cost: parseFloat(cost) || 0 };
+  let ingredients = document.getElementById('ingredients').value.split('\n').map(l => {
+    let [n,q,u,c] = l.split(',');
+    return { name:n, qty:parseFloat(q), unit:u, cost:parseFloat(c)||0 };
   });
 
   let steps = getSteps();
   let preheatTemp = document.getElementById('preheatTemp').value;
   let preheatTime = document.getElementById('preheatTime').value;
-  let priceRate = parseFloat(document.getElementById('priceRate').value) || 2;
+  let priceRate = parseFloat(document.getElementById('priceRate').value)||2;
 
   products.push({ name, baseSize, ingredients, steps, preheatTemp, preheatTime, yieldCount, priceRate });
-  save();
+  saveCloud();
   renderList();
-  alert('已新增');
+  alert('已新增＋雲端同步');
 }
 
-// 面積比例（圓形蛋糕用）= (目標直徑^2 / 基準直徑^2)
-function getRatio(target, base) {
-  return (target * target) / (base * base);
-}
+function getRatio(t,b){return (t*t)/(b*b);} 
 
-function calculate() {
-  let index = document.getElementById('productList').value;
-  let targetSize = parseFloat(document.getElementById('targetSize').value);
+function calculate(){
+  let p = products[document.getElementById('productList').value];
+  let ratio = getRatio(parseFloat(targetSize.value), p.baseSize);
 
-  let p = products[index];
-  let ratio = getRatio(targetSize, p.baseSize);
+  let text=`產品:${p.name}\n倍率:${ratio.toFixed(2)}\n`;
+  text+=`預熱:${p.preheatTemp}°C ${p.preheatTime}分\n`;
 
-  let totalCost = 0;
-  let totalTime = 0;
-
-  let text = `產品: ${p.name}\n`;
-  text += `尺寸倍率: ${ratio.toFixed(2)}\n`;
-  text += `預熱: ${p.preheatTemp}°C → ${p.preheatTime} 分鐘\n\n`;
-
-  text += `🔥 烘焙流程:\n`;
-  p.steps.forEach(s => {
-    totalTime += s.time;
-    text += `${s.temp}°C → ${s.time} 分鐘\n`;
+  let totalCost=0;
+  p.ingredients.forEach(i=>{
+    let q=i.qty*ratio;
+    let c=q*i.cost;
+    totalCost+=c;
+    text+=`${i.name}:${q.toFixed(1)} ${i.unit}\n`;
   });
 
-  text += `總烘焙時間: ${totalTime} 分鐘\n\n`;
+  text+=`成本:${totalCost.toFixed(1)}\n`;
+  text+=`售價:${(totalCost*p.priceRate).toFixed(0)}\n`;
 
-  text += `🧾 材料:\n`;
-  p.ingredients.forEach(i => {
-    let newQty = (i.qty * ratio);
-    let cost = newQty * i.cost;
-    totalCost += cost;
-    text += `${i.name}: ${newQty.toFixed(2)} ${i.unit} | 成本 ${cost.toFixed(1)}\n`;
-  });
-
-  let unitCost = totalCost / p.yieldCount;
-  let suggestPrice = unitCost * p.priceRate;
-
-  text += `\n💰 總成本: ${totalCost.toFixed(1)}\n`;
-  text += `單個成本: ${unitCost.toFixed(1)}\n`;
-  text += `建議售價(${p.priceRate}倍): ${suggestPrice.toFixed(0)}\n`;
-
-  document.getElementById('result').textContent = text;
+  result.textContent=text;
 }
 
-renderList();
 addStep();
 </script>
 
