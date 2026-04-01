@@ -15,12 +15,26 @@
 
 <h2>產品設定</h2>
 <input id="productName" placeholder="產品名稱">
-<input id="size" placeholder="尺寸(6吋)"
+<input id="size" placeholder="尺寸(6吋)">
+
+<h3>預熱</h3>
+<input id="preheatTemp" placeholder="預熱溫度">
+<input id="preheatTime" placeholder="預熱時間">
+
+<h3>烘焙步驟</h3>
+<button id="addStepBtn">新增步驟</button>
+<div id="steps"></div>
+
 <h3>材料</h3>
 <button id="addIngredientBtn">新增材料</button>
 <div id="ingredients"></div>
 
 <h3>總成本: <span id="totalCost">0</span></h3>
+
+<button id="saveBtn">💾 儲存產品</button>
+
+<h3>產品列表</h3>
+<div id="productList"></div>
 
 <script>
 const firebaseConfig = {
@@ -33,7 +47,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// 🔥 材料資料庫（可自行擴充）
+// 材料資料庫
 const materialDB = {
   "奶油乳酪": 0.02,
   "砂糖": 0.01,
@@ -41,6 +55,7 @@ const materialDB = {
   "雞蛋": 5
 };
 
+// 材料
 function addIngredient(name="", gram="", price="", note=""){
   const div=document.createElement("div");
   div.className="box";
@@ -52,17 +67,13 @@ function addIngredient(name="", gram="", price="", note=""){
 
   div.innerHTML=`
     材料:
-    <select class="materialSelect">
-      ${options}
-    </select>
-
+    <select class="materialSelect">${options}</select>
     名稱:<input class="name" value="${name}">
     克數:<input class="gram" type="number" value="${gram}">
     單價:<input class="price" type="number" value="${price}">
     備註:<input class="note" value="${note}">
   `;
 
-  // 🔥 選擇材料自動帶價格
   div.querySelector(".materialSelect").onchange = function(){
     const selected = this.value;
     if(materialDB[selected]){
@@ -72,6 +83,14 @@ function addIngredient(name="", gram="", price="", note=""){
   }
 
   document.getElementById("ingredients").appendChild(div);
+}
+
+// 烘焙步驟
+function addStep(temp="", time=""){
+  const div=document.createElement("div");
+  div.className="box";
+  div.innerHTML=`溫度:<input class="stepTemp" value="${temp}"> 時間:<input class="stepTime" value="${time}">`;
+  document.getElementById("steps").appendChild(div);
 }
 
 // 成本
@@ -85,14 +104,86 @@ function calculateCost(){
   document.getElementById("totalCost").innerText=total.toFixed(2);
 }
 
-// 綁定
-document.getElementById("addIngredientBtn").onclick=()=>addIngredient();
-setInterval(calculateCost,1000);
+// 儲存
+function saveProduct(){
+  const name=document.getElementById("productName").value;
 
-// 測試
-addIngredient("奶油乳酪",250,0.02,"Kiri");
-addIngredient("砂糖",60,0.01,"細砂");
+  const data={
+    name,
+    size:document.getElementById("size").value,
+    preheat:{
+      temp:document.getElementById("preheatTemp").value,
+      time:document.getElementById("preheatTime").value
+    },
+    steps:[],
+    ingredients:[]
+  };
+
+  document.querySelectorAll("#steps .box").forEach(s=>{
+    data.steps.push({
+      temp:s.querySelector(".stepTemp").value,
+      time:s.querySelector(".stepTime").value
+    });
+  });
+
+  document.querySelectorAll("#ingredients .box").forEach(r=>{
+    data.ingredients.push({
+      name:r.querySelector(".name").value,
+      gram:r.querySelector(".gram").value,
+      price:r.querySelector(".price").value,
+      note:r.querySelector(".note").value
+    });
+  });
+
+  db.ref("products/"+name).set(data);
+  alert("已儲存");
+}
+
+// 載入列表
+function loadProducts(){
+  db.ref("products").on("value",snap=>{
+    const list=document.getElementById("productList");
+    list.innerHTML="";
+    const d=snap.val()||{};
+
+    Object.keys(d).forEach(k=>{
+      const div=document.createElement("div");
+      div.className="box";
+      div.innerHTML=`${k} <button onclick="loadOne('${k}')">載入</button>`;
+      list.appendChild(div);
+    });
+  });
+}
+
+function loadOne(name){
+  db.ref("products/"+name).once("value",snap=>{
+    const d=snap.val();
+
+    document.getElementById("productName").value=d.name;
+    document.getElementById("size").value=d.size;
+    document.getElementById("preheatTemp").value=d.preheat.temp;
+    document.getElementById("preheatTime").value=d.preheat.time;
+
+    document.getElementById("steps").innerHTML="";
+    d.steps.forEach(s=>addStep(s.temp,s.time));
+
+    document.getElementById("ingredients").innerHTML="";
+    d.ingredients.forEach(i=>addIngredient(i.name,i.gram,i.price,i.note));
+
+    calculateCost();
+  });
+}
+
+// 綁定
+
+document.getElementById("addIngredientBtn").onclick=()=>addIngredient();
+document.getElementById("addStepBtn").onclick=()=>addStep();
+document.getElementById("saveBtn").onclick=saveProduct;
+
+setInterval(calculateCost,1000);
+loadProducts();
 
 </script>
 </body>
 </html>
+
