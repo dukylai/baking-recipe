@@ -3,6 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <title>烘焙紀錄系統（雲端商用版）</title>
+<script type="module">
+  // Import the functions you need from the SDKs
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+  
+  // Your web app's Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyDrBhqAnD6j8sEGb0CLJKsoP4SRTTVVl0s",
+    authDomain: "baking-system-e376c.firebaseapp.com",
+    databaseURL: "https://baking-system-e376c-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "baking-system-e376c",
+    storageBucket: "baking-system-e376c.firebasestorage.app",
+    messagingSenderId: "27804610407",
+    appId: "1:27804610407:web:df4df1005db0f44abe09c2",
+    measurementId: "G-S2XKBHBYY9"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+</script>
 <style>
 body { font-family: Arial; padding:20px; background:#f5f5f5; }
 .card { background:white; padding:15px; border-radius:10px; margin-bottom:15px; }
@@ -13,12 +34,12 @@ input, select, button { margin:5px 0; padding:6px; width:100%; }
 </head>
 <body>
 
-<h2>🍰 烘焙紀錄系統（雲端同步版）</h2>
+<h2>🍰 烘焙紀錄系統（真雲端同步版）</h2>
 
 <div class="card">
-<h3>🔑 輸入你的資料庫名稱（自己取）</h3>
+<h3>🔑 輸入你的資料庫名稱（共用）</h3>
 <input id="dbKey" placeholder="例如：mycake123">
-<button onclick="loadData()">連線 / 載入</button>
+<button onclick="connectDB()">連線 / 同步</button>
 </div>
 
 <div class="card">
@@ -57,20 +78,25 @@ input, select, button { margin:5px 0; padding:6px; width:100%; }
 <pre id="result"></pre>
 </div>
 
-<script>
+<script type="module">
+import { ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
 let products = [];
 let dbKey = '';
 
-function saveCloud() {
-  if (!dbKey) return;
-  localStorage.setItem(dbKey, JSON.stringify(products));
+function connectDB() {
+  dbKey = document.getElementById('dbKey').value;
+  const dbRef = ref(db, 'baking/' + dbKey);
+  onValue(dbRef, (snapshot) => {
+    products = snapshot.val() || [];
+    renderList();
+  });
+  alert('已連線（手機＋電腦同步）');
 }
 
-function loadData() {
-  dbKey = document.getElementById('dbKey').value;
-  products = JSON.parse(localStorage.getItem(dbKey) || '[]');
-  renderList();
-  alert('已載入資料');
+function saveCloud() {
+  if (!dbKey) return;
+  set(ref(db, 'baking/' + dbKey), products);
 }
 
 function renderList() {
@@ -84,14 +110,13 @@ function renderList() {
   });
 }
 
-// ===== 材料（動態） =====
 function addIngredient(n='', q='', u='', c='') {
   let div = document.createElement('div');
   div.className = 'row';
   div.innerHTML = `
     <input placeholder="名稱" value="${n}">
     <input placeholder="數量" value="${q}">
-    <input placeholder="單位(g/ml/顆)" value="${u}">
+    <input placeholder="單位" value="${u}">
     <input placeholder="單價" value="${c}">
   `;
   document.getElementById('ingredientsBox').appendChild(div);
@@ -111,7 +136,6 @@ function getIngredients() {
   return arr;
 }
 
-// ===== 烘焙步驟 =====
 function addStep(temp='', time='') {
   let div = document.createElement('div');
   div.className = 'row';
@@ -136,20 +160,15 @@ function getSteps() {
 
 function addProduct() {
   let name = productName.value;
-  let baseSize = parseFloat(baseSizeInput.value || baseSize.value);
+  let baseSize = parseFloat(baseSizeInput.value);
   let yieldCount = parseFloat(document.getElementById('yieldCount').value) || 1;
-
   let ingredients = getIngredients();
   let steps = getSteps();
-
-  let preheatTemp = preheatTempInput.value || preheatTemp.value;
-  let preheatTime = preheatTimeInput.value || preheatTime.value;
-  let priceRate = parseFloat(priceRateInput.value || priceRate.value) || 2;
-
+  let preheatTemp = preheatTempInput.value;
+  let preheatTime = preheatTimeInput.value;
+  let priceRate = parseFloat(priceRateInput.value) || 2;
   products.push({ name, baseSize, ingredients, steps, preheatTemp, preheatTime, yieldCount, priceRate });
   saveCloud();
-  renderList();
-  alert('已新增');
 }
 
 function getRatio(t,b){return (t*t)/(b*b);} 
@@ -157,10 +176,8 @@ function getRatio(t,b){return (t*t)/(b*b);}
 function calculate(){
   let p = products[productList.value];
   let ratio = getRatio(parseFloat(targetSize.value), p.baseSize);
-
   let text=`產品:${p.name}\n倍率:${ratio.toFixed(2)}\n`;
   text+=`預熱:${p.preheatTemp}°C ${p.preheatTime}分\n\n`;
-
   text+=`🔥 烘焙流程:\n`;
   let totalTime=0;
   p.steps.forEach(s=>{
@@ -168,7 +185,6 @@ function calculate(){
     text+=`${s.temp}°C → ${s.time}分\n`;
   });
   text+=`總時間:${totalTime}分\n\n`;
-
   let totalCost=0;
   text+=`🧾 材料:\n`;
   p.ingredients.forEach(i=>{
@@ -177,18 +193,14 @@ function calculate(){
     totalCost+=c;
     text+=`${i.name}:${q.toFixed(1)} ${i.unit}（$${c.toFixed(1)}）\n`;
   });
-
   text+=`\n成本:${totalCost.toFixed(1)}\n`;
   text+=`售價:${(totalCost*p.priceRate).toFixed(0)}\n`;
-
   result.textContent=text;
 }
 
-// 初始化
 addStep();
 addIngredient();
 
-// 修正ID引用
 const productName = document.getElementById('productName');
 const baseSizeInput = document.getElementById('baseSize');
 const preheatTempInput = document.getElementById('preheatTemp');
