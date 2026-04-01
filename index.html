@@ -6,8 +6,7 @@
 <style>
 body { font-family: Arial; padding:20px; background:#f5f5f5; }
 .card { background:white; padding:15px; border-radius:10px; margin-bottom:15px; }
-input, select, button, textarea { margin:5px 0; padding:6px; width:100%; }
-.small { width:48%; display:inline-block; }
+input, select, button { margin:5px 0; padding:6px; width:100%; }
 .row { display:flex; gap:8px; }
 .row > * { flex:1; }
 </style>
@@ -27,7 +26,10 @@ input, select, button, textarea { margin:5px 0; padding:6px; width:100%; }
 <input id="productName" placeholder="產品名稱">
 <input id="baseSize" type="number" placeholder="基準尺寸(例如6吋)">
 
-<textarea id="ingredients" placeholder="名稱,數量,單位,成本"></textarea>
+<h4>材料（可多筆）</h4>
+<div id="ingredientsBox"></div>
+<button onclick="addIngredient()">➕ 新增材料</button>
+
 <input id="yieldCount" type="number" placeholder="成品數量">
 
 <div class="row">
@@ -35,6 +37,7 @@ input, select, button, textarea { margin:5px 0; padding:6px; width:100%; }
 <input id="preheatTime" placeholder="預熱時間">
 </div>
 
+<h4>烘焙溫度與時間</h4>
 <div id="steps"></div>
 <button onclick="addStep()">➕ 溫度步驟</button>
 
@@ -67,7 +70,7 @@ function loadData() {
   dbKey = document.getElementById('dbKey').value;
   products = JSON.parse(localStorage.getItem(dbKey) || '[]');
   renderList();
-  alert('已連線（同帳號名稱裝置會同步）');
+  alert('已載入資料');
 }
 
 function renderList() {
@@ -81,6 +84,34 @@ function renderList() {
   });
 }
 
+// ===== 材料（動態） =====
+function addIngredient(n='', q='', u='', c='') {
+  let div = document.createElement('div');
+  div.className = 'row';
+  div.innerHTML = `
+    <input placeholder="名稱" value="${n}">
+    <input placeholder="數量" value="${q}">
+    <input placeholder="單位(g/ml/顆)" value="${u}">
+    <input placeholder="單價" value="${c}">
+  `;
+  document.getElementById('ingredientsBox').appendChild(div);
+}
+
+function getIngredients() {
+  let rows = document.getElementById('ingredientsBox').children;
+  let arr = [];
+  for (let r of rows) {
+    let i = r.getElementsByTagName('input');
+    let name = i[0].value;
+    let qty = parseFloat(i[1].value);
+    let unit = i[2].value;
+    let cost = parseFloat(i[3].value) || 0;
+    if (name) arr.push({ name, qty, unit, cost });
+  }
+  return arr;
+}
+
+// ===== 烘焙步驟 =====
 function addStep(temp='', time='') {
   let div = document.createElement('div');
   div.className = 'row';
@@ -92,62 +123,80 @@ function addStep(temp='', time='') {
 }
 
 function getSteps() {
-  let stepDivs = document.getElementById('steps').children;
-  let steps = [];
-  for (let d of stepDivs) {
-    let inputs = d.getElementsByTagName('input');
-    let temp = parseFloat(inputs[0].value);
-    let time = parseFloat(inputs[1].value);
-    if (!isNaN(temp)) steps.push({ temp, time });
+  let rows = document.getElementById('steps').children;
+  let arr = [];
+  for (let r of rows) {
+    let i = r.getElementsByTagName('input');
+    let temp = parseFloat(i[0].value);
+    let time = parseFloat(i[1].value);
+    if (!isNaN(temp) && !isNaN(time)) arr.push({ temp, time });
   }
-  return steps;
+  return arr;
 }
 
 function addProduct() {
-  let name = document.getElementById('productName').value;
-  let baseSize = parseFloat(document.getElementById('baseSize').value);
+  let name = productName.value;
+  let baseSize = parseFloat(baseSizeInput.value || baseSize.value);
   let yieldCount = parseFloat(document.getElementById('yieldCount').value) || 1;
 
-  let ingredients = document.getElementById('ingredients').value.split('\n').map(l => {
-    let [n,q,u,c] = l.split(',');
-    return { name:n, qty:parseFloat(q), unit:u, cost:parseFloat(c)||0 };
-  });
-
+  let ingredients = getIngredients();
   let steps = getSteps();
-  let preheatTemp = document.getElementById('preheatTemp').value;
-  let preheatTime = document.getElementById('preheatTime').value;
-  let priceRate = parseFloat(document.getElementById('priceRate').value)||2;
+
+  let preheatTemp = preheatTempInput.value || preheatTemp.value;
+  let preheatTime = preheatTimeInput.value || preheatTime.value;
+  let priceRate = parseFloat(priceRateInput.value || priceRate.value) || 2;
 
   products.push({ name, baseSize, ingredients, steps, preheatTemp, preheatTime, yieldCount, priceRate });
   saveCloud();
   renderList();
-  alert('已新增＋雲端同步');
+  alert('已新增');
 }
 
 function getRatio(t,b){return (t*t)/(b*b);} 
 
 function calculate(){
-  let p = products[document.getElementById('productList').value];
+  let p = products[productList.value];
   let ratio = getRatio(parseFloat(targetSize.value), p.baseSize);
 
   let text=`產品:${p.name}\n倍率:${ratio.toFixed(2)}\n`;
-  text+=`預熱:${p.preheatTemp}°C ${p.preheatTime}分\n`;
+  text+=`預熱:${p.preheatTemp}°C ${p.preheatTime}分\n\n`;
+
+  text+=`🔥 烘焙流程:\n`;
+  let totalTime=0;
+  p.steps.forEach(s=>{
+    totalTime+=s.time;
+    text+=`${s.temp}°C → ${s.time}分\n`;
+  });
+  text+=`總時間:${totalTime}分\n\n`;
 
   let totalCost=0;
+  text+=`🧾 材料:\n`;
   p.ingredients.forEach(i=>{
     let q=i.qty*ratio;
     let c=q*i.cost;
     totalCost+=c;
-    text+=`${i.name}:${q.toFixed(1)} ${i.unit}\n`;
+    text+=`${i.name}:${q.toFixed(1)} ${i.unit}（$${c.toFixed(1)}）\n`;
   });
 
-  text+=`成本:${totalCost.toFixed(1)}\n`;
+  text+=`\n成本:${totalCost.toFixed(1)}\n`;
   text+=`售價:${(totalCost*p.priceRate).toFixed(0)}\n`;
 
   result.textContent=text;
 }
 
+// 初始化
 addStep();
+addIngredient();
+
+// 修正ID引用
+const productName = document.getElementById('productName');
+const baseSizeInput = document.getElementById('baseSize');
+const preheatTempInput = document.getElementById('preheatTemp');
+const preheatTimeInput = document.getElementById('preheatTime');
+const priceRateInput = document.getElementById('priceRate');
+const productList = document.getElementById('productList');
+const targetSize = document.getElementById('targetSize');
+const result = document.getElementById('result');
 </script>
 
 </body>
